@@ -5,6 +5,8 @@ import settings
 
 
 class SplitWiseManager:
+    authentication_state = None
+
     def __init__(self):
         self.instance = Splitwise(
             settings.SPLITWISE_CONSUMER_KEY,
@@ -15,8 +17,8 @@ class SplitWiseManager:
         url, state = self.instance.getOAuth2AuthorizeURL(
             settings.SPLITWISE_CALLBACK_URL
         )
-        print(f"state: {state}")
-        print(f"url: {url}")
+        self.authentication_state = state
+        print(f"putting state into class: {state}")
         webbrowser.open(url, new=2)
 
     def get_access_token(self, code):

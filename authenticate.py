@@ -4,51 +4,39 @@ from splitwise_manager import SplitWiseManager
 
 
 app = Flask(__name__)
-
-
-@app.route('/test/')
-def test():
-    print('inside')
-    return request.args.get('data', 'Test loaded')  # send text to web browser
+sw = SplitWiseManager()
 
 
 @app.route('/generate_token/')
 def index():
-    """
-    So this is going to be called when the user accesses the callback.
-    Therefore, we need to trigger the synch from this point, if we got the
-    credentials.
-
-    But if we do that here, we have to give the feedback at the web browser.
-
-    Had we have a valid token, we could just run the synch without any
-    http server or opening any browser.
-    """
-    print('args:', request.args)
-    sw = SplitWiseManager()
     code = request.args.get('code')
     if not code:
-        return request.args.get('data', "'code' not found in get params.")
+        msg = ("'code' not found in get params. This endpoint is meant for the"
+               " Splitwise's auth process to call back the app. Are you "
+               "accessing it directly?")
+        return Response(msg, mimetype='text/plain')
     access_token = sw.get_access_token(code)
     if not access_token:
-        return request.args.get('data', "Failed to generate token with this"
-                                        "get['code']")
-    print("Access token:")
+        msg = ("Failed to generate token with the supplied code parameter. Try"
+               " to launch the authentication script again.")
+        return Response(msg, mimetype='text/plain')
+    print("Token generation finished. Copy the token code inside your .env "
+          "file:")
     print(access_token)
-    msg = f"Token generation finished. Token: {access_token}"
+    msg = (f"Token generation finished. You can close this tab and go back to "
+           f"the console for more instructions.")
 
-    # Trying to stop the server:
+    # Stopping the server:
     shutdown_hook = request.environ.get('werkzeug.server.shutdown')
     if shutdown_hook is not None:
         shutdown_hook()
     return Response(msg, mimetype='text/plain')
 
 
-"""
-Having the server initialized and listening, we tell the
-SplitWiseManager to generate the auth URL and open it in a browser
-"""
 if __name__ == '__main__':
-    print("launching auth..")
-    SplitWiseManager().launch_authentication()
+    print("Launching Splitwise authentication in a browser. Please follow "
+          "the steps and come back when finished.")
+    sw.launch_authentication()
+    # Beware that with debug=True it runs 2 times (2 browser tabs will be
+    # open)
     app.run(port=1337, debug=False)

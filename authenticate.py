@@ -10,11 +10,22 @@ sw = SplitWiseManager()
 @app.route('/generate_token/')
 def index():
     code = request.args.get('code')
-    if not code:
-        msg = ("'code' not found in get params. This endpoint is meant for the"
-               " Splitwise's auth process to call back the app. Are you "
-               "accessing it directly?")
+    state = request.args.get('state')
+
+    # Callback parameters check
+    if not code or not state:
+        msg = ("Either or both parameters 'code' and 'state' not found in get."
+               " This endpoint is meant for the Splitwise's auth process to "
+               "call back the app. Are you accessing it directly?")
         return Response(msg, mimetype='text/plain')
+    if state != sw.authentication_state:
+        msg = ("Supplied 'state' parameter doesn't match the one generated "
+               "during authentication initialization. Make sure that you are "
+               "using the right tab. If you launched the authentication "
+               "multiple times, close all tabs, stop the script, and launch it"
+               " again.")
+        return Response(msg, mimetype='text/plain')
+
     access_token = sw.get_access_token(code)
     if not access_token:
         msg = ("Failed to generate token with the supplied code parameter. Try"

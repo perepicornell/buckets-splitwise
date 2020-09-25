@@ -50,3 +50,35 @@ Having now a valid token in your .env file...
 
     python synch.py
     
+## Usage
+
+If you already had your own system for entering the Splitwise expenses into Buckets,
+you need to set the date of the last expense you entered (or today's date, if you're up to date)
+in order to prevent duplicating entries.
+
+- Locate the last expense in Splitwise that you entered in Buckets and make sure that
+all the transactions from this day are inserted in Buckets.
+- Then write down that date in the .env config in this format:
+
+
+    SPLITWISE_EXPENSES_DATED_AFTER=2020-08-26
+    
+Remember that if you or someone enters an expense older than this date, the script is not
+going to synchronize it.
+
+- In Buckets, create an Account for Splitwise (as if it's another bank account), and set its 
+initial balance to your global balance in Splitwise.
+
+With this approach, remember that Buckets is going to think that you have this money at your disposition,
+but obviously, you'll need to ask everyone to settle up the debt with you to actually have it ;)
+
+
+
+### How do I register it when someone pays me their debt with me?
+
+Add a Transfer transaction from Splitwise to the account you actually received the money for this amount.
+
+### And if it's me returning a debt to someone?
+
+Add an expense transaction to the Splitwise Account for this amount.
+ 

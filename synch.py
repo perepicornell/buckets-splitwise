@@ -51,13 +51,23 @@ for expense in expenses:
         CASE B: Ticket that someone else paid, in which I'm included
         Say someone paid 30€ and my share is 5€.
         We need 1 transaction to be registered in Buckets:
-        T1: An expense transaction charged at the bks,splitwise_acc account
+        T1: An expense transaction charged at the bks.splitwise_acc account
         by the amount of my share of the expense, at the corresponding Bucket
         according to the Splitwise category of the expense. 
 
         By now the expense Bucket is not set and needs to be set manually
         after importing them.
         """
+        if bk.transaction_exist(expense.getId()):
+            print(f"{expense.getId()=} already exists in Buckets, skipping.")
+            continue
+        bk.create_transaction(
+            account_id=bk.splitwise_account_id,
+            amount=bk.to_buckets_amount(owed_share, True),
+            memo=expense.getDescription(),
+            fi_id=expense.getId(),
+            general_cat=None
+        )
         print(f"{expense.getDescription()} paid by someone else!")
     else:
         print("Error: this expense is marked as paid by others but then your "

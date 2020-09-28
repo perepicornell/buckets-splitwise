@@ -16,6 +16,7 @@ class BucketManager:
         id INTEGER PRIMARY KEY
         created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         posted TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            Note: It actually needs a datetime string, not a timestamp number.
         account_id INTEGER
         amount INTEGER
         memo TEXT
@@ -36,6 +37,12 @@ class BucketManager:
     We also need to access the 'account' table in order to get the Splitwise
     account ID.
 
+    To create transactions that are Transfers:
+    - Create am expense transaction with 'general_cat' set to: 'transfer' for
+        the outcoming account.
+    - Create an income transaction with the same values but to the incoming
+        account.
+
     account's scheme:
         id INTEGER PRIMARY KEY
         created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -54,6 +61,7 @@ class BucketManager:
         self.connection = sqlite3.connect(settings.BUCKETS_BUDGET_FILE_PATH)
         self.cursor = self.connection.cursor()
         self.splitwise_account_id = self.get_splitwise_account_id()
+        self.payments_account_id = self.get_payments_account_id()
 
     def get_splitwise_account_id(self):
         acc_name = settings.BUCKETS_SPLITWISE_ACCOUNT_NAME
@@ -68,6 +76,19 @@ class BucketManager:
             )
         return results[0][0]
 
+    def get_payments_account_id(self):
+        acc_name = settings.BUCKETS_PAYMENTS_ACCOUNT
+        cmd = f"SELECT * FROM account WHERE name='{acc_name}'"
+        self.cursor.execute(cmd)
+        results = self.cursor.fetchall()
+        if len(results) < 1:
+            raise MissingSpliwiseAccount(
+                "In your BUCKETS_PAYMENTS_ACCOUNT settings you specified"
+                f" '{acc_name}', but no account with this name was found in "
+                "your buckets file."
+            )
+        return results[0][0]
+
     def transaction_exist(self, sw_id):
         cmd = f"SELECT * FROM account_transaction WHERE fi_id='{sw_id}'"
         self.cursor.execute(cmd)
@@ -76,16 +97,25 @@ class BucketManager:
             return True
         return False
 
-    def create_transaction(self, account_id, amount, memo, fi_id, general_cat):
+    def create_transaction(
+            self, date, account_id, amount, memo, fi_id, general_cat
+    ):
+        if amount == 0:
+            """ It doesn't make sense to make 0 value expenses, incomes or 
+            transfers, which could happen in some situations, i.e. if I paid 
+            something that's entirely owed by other people.
+            """
+            return
         if general_cat:
             general_cat = f"'{general_cat}'"
         else:
             general_cat = 'Null'
         cmd = f"""
         INSERT INTO account_transaction (
-            account_id, amount, memo, fi_id, general_cat
+            posted, account_id, amount, memo, fi_id, general_cat
         )
         VALUES (
+            '{date}',
             {account_id},
             {amount},
             '{memo}',
@@ -93,7 +123,6 @@ class BucketManager:
             {general_cat}
         )
         """
-        print(cmd)
         self.cursor.execute(cmd)
         self.connection.commit()
         return self.cursor.lastrowid
@@ -107,7 +136,7 @@ class BucketManager:
         return int(amount*100)
 
     def test(self):
-        cmd = "SELECT * FROM account_transaction LIMIT 2"
+        cmd = "SELECT * FROM account_transaction"
         self.cursor.execute(cmd)
         results = self.cursor.fetchall()
 

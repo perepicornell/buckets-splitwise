@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import settings
 from buckets_manager import BucketManager
 from splitwise_manager import SplitWiseManager
@@ -7,7 +9,6 @@ from splitwise_manager import SplitWiseManager
 Reference for the comments in the code:
 bks.default_acc means BUCKETS_PAYMENTS_ACCOUNT
 bks.splitwise_acc means BUCKETS_SPLITWISE_ACCOUNT_NAME
-
 """
 
 sw = SplitWiseManager()
@@ -20,8 +21,18 @@ current_user = sw.get_current_user()
 
 i = 0
 for expense in expenses:
+    # Debugging in process:
+    # i += 1
+    # print(expense.getDescription())
+    # print(expense.getDate())
+    # if expense.getDescription() == "Pa i Snickers":
+    #     print(expense.__dict__)
+    # print(f"total: {i}")
+    # continue
+
     # Expense object docs: https://splitwise.readthedocs.io/en/stable/api.html#splitwise.expense.Expense  #noqa
-    date = expense.getDate()
+    date_sw = expense.getDate()
+    date_py = datetime.strptime(date_sw, '%Y-%m-%dT%H:%M:%SZ')
     users = expense.getUsers()
     paid_by_me, my_expense_user_obj = sw.get_my_expense_user_obj(expense)
     if not my_expense_user_obj:
@@ -44,7 +55,39 @@ for expense in expenses:
         By now the expense Bucket is not set and needs to be set manually
         after importing them.
         """
+
+        # Creating T1
+        if bk.transaction_exist(expense.getId()):
+            print(f"{expense.getId()=} already exists in Buckets, skipping.")
+            continue
+        bk.create_transaction(
+            date=date_py,
+            account_id=bk.payments_account_id,
+            amount=bk.to_buckets_amount(owed_share, True),
+            memo=expense.getDescription(),
+            fi_id=expense.getId(),
+            general_cat=None
+        )
+
+        # Creating T2
         owed_by_others = round(paid_share - owed_share, 2)
+        bk.create_transaction(
+            date=date_py,
+            account_id=bk.payments_account_id,
+            amount=bk.to_buckets_amount(owed_by_others, True),
+            memo=expense.getDescription(),
+            fi_id=expense.getId(),
+            general_cat='transfer'
+        )
+        bk.create_transaction(
+            date=date_py,
+            account_id=bk.splitwise_account_id,
+            amount=bk.to_buckets_amount(owed_by_others),
+            memo=expense.getDescription(),
+            fi_id=expense.getId(),
+            general_cat='transfer'
+        )
+
         print(f"{expense.getDescription()} paid by me!, {owed_by_others=}")
     elif owed_share > 0:
         """
@@ -62,6 +105,7 @@ for expense in expenses:
             print(f"{expense.getId()=} already exists in Buckets, skipping.")
             continue
         bk.create_transaction(
+            date=date_py,
             account_id=bk.splitwise_account_id,
             amount=bk.to_buckets_amount(owed_share, True),
             memo=expense.getDescription(),
@@ -76,40 +120,3 @@ for expense in expenses:
         print("Expense dump: " + my_expense_user_obj.__dict__)
 
     print("")
-    # i += 1
-    # if i == 2:
-    #     break
-
-
-expense_object_example = {
-    'id': 1085155940,
-    'group_id': 19188874,
-    'description': 'Fruites i verdures',
-    'repeats': False,
-    'repeat_interval': 'never',
-    'email_reminder': True,
-    'email_reminder_in_advance': None,
-    'next_repeat': None,
-    'details': '',
-    'comments_count': 0,
-    'payment': False,
-    'creation_method': 'split',
-    'transaction_method': 'offline',
-    'transaction_confirmed': False,
-    'cost': '30.43',
-    'currency_code': 'EUR',
-    'created_by': '',
-    'date': '2020-09-23T13:30:10Z',
-    'created_at': '2020-09-23T13:30:31Z',
-    'updated_at': '2020-09-23T13:30:31Z',
-    'deleted_at': None,
-    'receipt': 'receipt object',
-    'category': 'category object',
-    'updated_by': None,
-    'deleted_by': None,
-    'friendship_id': None,
-    'expense_bundle_id': None,
-    'repayments': ['debt object', 'debt object', 'debt object', ],
-    'users': ['expense user object', 'expense user object', ],
-    'transaction_id': None
-}

@@ -38,7 +38,8 @@ class SplitWiseManager:
         dated_after = settings.SPLITWISE_EXPENSES_DATED_AFTER
         # updated_after = '2020-08-01'
         return self.instance.getExpenses(
-            dated_after=dated_after
+            dated_after=dated_after,
+            limit=settings.SPLITWISE_EXPENSES_LIMIT
         )
 
     def get_my_expense_user_obj(self, expense):

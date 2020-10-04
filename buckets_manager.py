@@ -165,6 +165,8 @@ class BucketManager:
         return results[0][0]
 
     def categorize_transaction(self, bucket_id, date, amount, memo, trans_id):
+        if not bucket_id:
+            return
         cmd = f"""
         INSERT INTO bucket_transaction (
             posted, bucket_id, amount, memo, account_trans_id

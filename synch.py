@@ -34,11 +34,11 @@ class SplitwiseToBucketsSynch:
 
     def run(self):
         for expense in self.expenses:
-            print('')
-
             # Expense object docs: https://splitwise.readthedocs.io/en/stable/api.html#splitwise.expense.Expense  #noqa
+            print('')
             date_sw = expense.getDate()
             date_py = datetime.strptime(date_sw, '%Y-%m-%dT%H:%M:%SZ')
+            print(f"Expense date: {date_py}")
             paid_by_me, my_expense_user_obj = self.sw.get_my_expense_user_obj(
                 expense)
             if not my_expense_user_obj:
@@ -57,7 +57,24 @@ class SplitwiseToBucketsSynch:
             print(
                 f"Paid share: {my_expense_user_obj.getPaidShare()}, "
                 f"owed share: {owed_share}")
-            if paid_by_me:
+            if expense.getPayment():
+                """
+                Not an expense but a payment received from another person (or
+                that you paid to someone)
+                """
+                cost = self.sw_to_bk_amount(expense.getCost())
+                print(f"Not an expense but a payment for {cost=}")
+                # TO DO: how to know if it's positive or negative?
+                self.bk.create_expense(
+                    date=date_py,
+                    amount=cost,
+                    memo=expense.getDescription(),
+                    fi_id=expense.getId(),
+                    general_cat='income',
+                    bucket_id=None,
+                    account='splitwise'
+                )
+            elif paid_by_me:
                 """
                 CASE A: Ticket that I paid
                 Say I paid 50€ of which my share is 10€.
@@ -80,6 +97,7 @@ class SplitwiseToBucketsSynch:
                 account = 'payment'
                 if self.sw.is_cash(expense):
                     account = 'cash'
+                print(f"Paying from {account=}")
                 self.bk.create_expense(
                     date=date_py,
                     amount=self.sw_to_bk_amount(owed_share, True),

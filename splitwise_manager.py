@@ -79,7 +79,7 @@ class SplitWiseManager:
                 user = comment.getCommentedUser()
                 content = comment.getContent()
                 if (
-                    user == self.current_user
+                    user.getId() == self.current_user.getId()
                     and content == config['ExpensesCashKeyword'].get()
                 ):
                     return True

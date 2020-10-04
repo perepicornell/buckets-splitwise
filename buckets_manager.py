@@ -1,6 +1,8 @@
 import sqlite3
 
-import settings
+from settings import config
+
+config = config['Buckets']
 
 
 class MissingSpliwiseAccount(Exception):
@@ -58,26 +60,15 @@ class BucketManager:
     """
 
     def __init__(self):
-        self.connection = sqlite3.connect(settings.BUCKETS_BUDGET_FILE_PATH)
+        self.connection = sqlite3.connect(config['BudgetFilePath'].get())
         self.cursor = self.connection.cursor()
-        self.splitwise_account_id = self.get_splitwise_account_id()
-        self.payments_account_id = self.get_payments_account_id()
+        self.account_ids = {}
+        for keyword, account_name in config['AccountsKeywords'].get().items():
+            self.account_ids.update({
+                keyword: self.get_account_id(account_name)
+            })
 
-    def get_splitwise_account_id(self):
-        acc_name = settings.BUCKETS_SPLITWISE_ACCOUNT_NAME
-        cmd = f"SELECT * FROM account WHERE name='{acc_name}'"
-        self.cursor.execute(cmd)
-        results = self.cursor.fetchall()
-        if len(results) < 1:
-            raise MissingSpliwiseAccount(
-                "In your BUCKETS_SPLITWISE_ACCOUNT_NAME settings you specified"
-                f" '{acc_name}', but no account with this name was found in "
-                "your buckets file."
-            )
-        return results[0][0]
-
-    def get_payments_account_id(self):
-        acc_name = settings.BUCKETS_PAYMENTS_ACCOUNT
+    def get_account_id(self, acc_name):
         cmd = f"SELECT * FROM account WHERE name='{acc_name}'"
         self.cursor.execute(cmd)
         results = self.cursor.fetchall()
@@ -97,8 +88,41 @@ class BucketManager:
             return True
         return False
 
-    def create_transaction(
-            self, date, account_id, amount, memo, fi_id, general_cat
+    def create_transfer(
+            self, date, amount, memo, fi_id, from_account, to_account
+    ):
+        self.create_account_transaction(
+            date=date,
+            account_id=self.account_ids[from_account],
+            amount=amount * -1,
+            memo=memo,
+            fi_id=fi_id,
+            general_cat='transfer'
+        )
+        self.create_account_transaction(
+            date=date,
+            account_id=self.account_ids[to_account],
+            amount=amount,
+            memo=memo,
+            fi_id=fi_id,
+            general_cat='transfer'
+        )
+
+    def create_expense(
+        self, date, amount, memo, fi_id, general_cat, bucket_id, account
+    ):
+        if account not in self.account_ids:
+            raise ValueError(f"Specified {account=} is not valid.")
+
+        transaction_id = self.create_account_transaction(
+            date, self.account_ids[account], amount, memo, fi_id, general_cat
+        )
+        self.categorize_transaction(
+            bucket_id, date, amount, memo, transaction_id
+        )
+
+    def create_account_transaction(
+            self, date, account_id, amount, memo, fi_id, general_cat,
     ):
         if amount == 0:
             """ It doesn't make sense to make 0 value expenses, incomes or 
@@ -106,34 +130,63 @@ class BucketManager:
             something that's entirely owed by other people.
             """
             return
-        if general_cat:
-            general_cat = f"'{general_cat}'"
-        else:
-            general_cat = 'Null'
         cmd = f"""
         INSERT INTO account_transaction (
             posted, account_id, amount, memo, fi_id, general_cat
         )
         VALUES (
-            '{date}',
-            {account_id},
-            {amount},
-            '{memo}',
-            '{fi_id}',
-            {general_cat}
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
         )
         """
+        values = (
+            date,
+            account_id,
+            amount,
+            memo,
+            fi_id,
+            general_cat
+        )
+        self.cursor.execute(cmd, values)
+        self.connection.commit()
+        created_id = self.cursor.lastrowid
+        return created_id
+
+    def get_bucket_id(self, bucket_name):
+        cmd = f"SELECT * FROM bucket WHERE name='{bucket_name}' LIMIT 1"
         self.cursor.execute(cmd)
+        results = self.cursor.fetchall()
+        if len(results) == 0:
+            return None
+        return results[0][0]
+
+    def categorize_transaction(self, bucket_id, date, amount, memo, trans_id):
+        cmd = f"""
+        INSERT INTO bucket_transaction (
+            posted, bucket_id, amount, memo, account_trans_id
+        )
+        VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+        )
+        """
+        values = (
+            date,
+            bucket_id,
+            amount,
+            memo,
+            trans_id
+        )
+        self.cursor.execute(cmd, values)
         self.connection.commit()
         return self.cursor.lastrowid
-
-    @staticmethod
-    def to_buckets_amount(amount, negative=False):
-        if amount is not float:
-            amount = float(amount)
-        if negative:
-            amount = amount * -1
-        return int(amount*100)
 
     def test(self):
         cmd = "SELECT * FROM account_transaction"

@@ -89,7 +89,7 @@ class SplitwiseToBucketsSynch:
             amount = float(amount)
         if negative:
             amount = amount * -1
-        return int(amount*100)
+        return int(round(amount * 100))
 
     def process_sw_expenses(self):
         for expense in self.expenses:
@@ -131,19 +131,18 @@ class SplitwiseToBucketsSynch:
         if expense.getPayment():
             """
             Not an expense but a payment received from another person (or
-            that you paid to someone)
+            that you paid to someone).
             """
             self.report_line.case = "Payment received"
             cost = self.sw_to_bk_amount(expense.getCost())
             # TO DO: how to know if it's positive or negative?
-            self.bk.create_expense(
+            self.bk.create_transfer(
                 date=date_py,
                 amount=cost,
                 memo=expense.getDescription(),
                 fi_id=expense.getId(),
-                general_cat='income',
-                bucket_id=None,
-                account='splitwise'
+                from_account='splitwise',
+                to_account='payment'
             )
         elif paid_by_me:
             """
@@ -175,7 +174,7 @@ class SplitwiseToBucketsSynch:
             )
 
             # Creating T2
-            owed_by_others = round(paid_share - owed_share, 2)
+            owed_by_others = self.sw.get_owed_by_others(expense)
             self.bk.create_transfer(
                 date=date_py,
                 amount=self.sw_to_bk_amount(owed_by_others),

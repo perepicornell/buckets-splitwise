@@ -96,6 +96,24 @@ class SplitWiseManager:
                 return paid_by_me, expense_user_obj
         return None, None
 
+    def get_owed_by_others(self, expense):
+        """
+        To avoid problems with decimal rounding, we sum the actual owed amount
+        of each involved user in the expense.
+
+        :param expense: Expense object
+        :return: Sum of the amounts owed by others
+        https://splitwise.readthedocs.io/en/stable/api.html#splitwise.user.ExpenseUser  #noqa
+        """
+        total = 0.0
+        users = expense.getUsers()
+        for expense_user_obj in users:
+            if expense_user_obj.getId() != self.current_user.getId():
+                print(expense_user_obj.getFirstName())
+                print(float(expense_user_obj.getOwedShare()))
+                total += float(expense_user_obj.getOwedShare())
+        return total
+
     def print_categories_dict(self):
         categories = self.instance.getCategories()
         for category in categories:

@@ -33,11 +33,6 @@ class SplitWiseManager:
     def authenticate(self, access_token=None):
         if not access_token:
             access_token = config['LastValidToken'].get()
-        # SPLITWISE_LAST_VALID_TOKEN = {
-        #     'access_token': os.getenv('SPLITWISE_LAST_VALID_TOKEN'),
-        #     'token_type': os.getenv('SPLITWISE_LAST_VALID_TOKEN_TYPE')
-        # }
-
         self.instance.setOAuth2AccessToken(access_token)
         self.current_user = self.get_current_user()
 

@@ -161,6 +161,17 @@ requests-oauthlib = ">=1.3.0,<2"
 
 [[package]]
 category = "main"
+description = "Pretty-print tabular data"
+name = "tabulate"
+optional = false
+python-versions = "*"
+version = "0.8.7"
+
+[package.extras]
+widechars = ["wcwidth"]
+
+[[package]]
+category = "main"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 name = "urllib3"
 optional = false
@@ -184,8 +195,16 @@ version = "1.0.1"
 dev = ["pytest", "pytest-timeout", "coverage", "tox", "sphinx", "pallets-sphinx-themes", "sphinx-issues"]
 watchdog = ["watchdog"]
 
+[[package]]
+category = "main"
+description = "Yet Another Terminal Spinner"
+name = "yaspin"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+version = "1.1.0"
+
 [metadata]
-content-hash = "a8aa9ed39fc31bd202b76d4cc95a70fa3fa22e41a9685b3dffc2cd6ceca430a4"
+content-hash = "236d4cc752ab4f5a6db6af44c81641dd65dcc8371305ee8f5301888043f2690f"
 python-versions = "^3.8"
 
 [metadata.files]
@@ -286,6 +305,10 @@ splitwise = [
     {file = "splitwise-2.2.0-py3-none-any.whl", hash = "sha256:fa0a4c58f399cc0b94314b67eeaf24e096d3f66e56358cdd91a61a2ff8fcc82b"},
     {file = "splitwise-2.2.0.tar.gz", hash = "sha256:af55369b77e805c3827edf470a81029c0aca6dbe5bdaf65e495b8c92d8929b44"},
 ]
+tabulate = [
+    {file = "tabulate-0.8.7-py3-none-any.whl", hash = "sha256:ac64cb76d53b1231d364babcd72abbb16855adac7de6665122f97b593f1eb2ba"},
+    {file = "tabulate-0.8.7.tar.gz", hash = "sha256:db2723a20d04bcda8522165c73eea7c300eda74e0ce852d9022e0159d7895007"},
+]
 urllib3 = [
     {file = "urllib3-1.25.10-py2.py3-none-any.whl", hash = "sha256:e7983572181f5e1522d9c98453462384ee92a0be7fac5f1413a1e35c56cc0461"},
     {file = "urllib3-1.25.10.tar.gz", hash = "sha256:91056c15fa70756691db97756772bb1eb9678fa585d9184f24534b100dc60f4a"},
@@ -293,4 +316,8 @@ urllib3 = [
 werkzeug = [
     {file = "Werkzeug-1.0.1-py2.py3-none-any.whl", hash = "sha256:2de2a5db0baeae7b2d2664949077c2ac63fbd16d98da0ff71837f7d1dea3fd43"},
     {file = "Werkzeug-1.0.1.tar.gz", hash = "sha256:6c80b1e5ad3665290ea39320b91e1be1e0d5f60652b964a3070216de83d2e47c"},
+]
+yaspin = [
+    {file = "yaspin-1.1.0-py2.py3-none-any.whl", hash = "sha256:069614d9aeb97a1c0fddf5ea86bf260f3a296f5dff4d97388a23d7b91c4858ef"},
+    {file = "yaspin-1.1.0.tar.gz", hash = "sha256:550657d4a337b0959cf1d7ed7354ccb672e7da9f9b142a55d158d129f48e3f5e"},
 ]

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "bucketssplitwiseimport"
-version = "0.1.0"
-description = "Expliring if it's viable to import Splitwise transactions into Buckets app"
+version = "0.9.0"
+description = "Synchronize your Splitwise expenses into your Bucket's budget."
 authors = ["Pere <pere@perepicornell.com>"]
 license = "Anti-capitalist software license (v 1.4)"
 

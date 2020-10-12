@@ -132,3 +132,13 @@ according to ExpensesDaysAgo and ExpensesLimit settings.
 
 If an expense that is older than that or that will not be retrieved because of 
 the limit is modified, the you need to locate it in Buckets and modify it manually.
+
+# Potential problems or doubts
+
+### The synchronization is importing an expense under a certain category (bucket), then I change it, but next time I run the script it changes back
+
+If the expense's category in Splitwise is one of the SplitwiseCategoriesToBucketNames setting,
+this correlation is going to prevail when synching.
+If you manually change an expense that is categorized in SplitwiseCategoriesToBucketNames and you don't want
+the script to modify it back again, you have to edit your expense in Splitwise and uncategorize it 
+(or set it to a category that you didn't relate to a bucket in SplitwiseCategoriesToBucketNames).

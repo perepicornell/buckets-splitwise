@@ -55,7 +55,7 @@ class SplitWiseManager:
             # updated_after = '2020-08-01'
         )
 
-        print(f"{len(expenses)} imported expenses from Splitwise")
+        print(f"\n{len(expenses)} imported expenses from Splitwise\n")
         if len(expenses) == config['ExpensesLimit'].get():
             print(
                 "You might be hitting the SPLITWISE_EXPENSES_LIMIT, increase "
@@ -87,14 +87,11 @@ class SplitWiseManager:
         there's any
         https://splitwise.readthedocs.io/en/stable/api.html#splitwise.user.ExpenseUser  #noqa
         """
-        paid_by_me = False
         users = expense.getUsers()
         for expense_user_obj in users:
             if expense_user_obj.getId() == self.current_user.getId():
-                if expense_user_obj.getPaidShare() != '0.0':
-                    paid_by_me = True
-                return paid_by_me, expense_user_obj
-        return None, None
+                return expense_user_obj
+        return None
 
     def get_owed_by_others(self, expense):
         """
@@ -109,8 +106,6 @@ class SplitWiseManager:
         users = expense.getUsers()
         for expense_user_obj in users:
             if expense_user_obj.getId() != self.current_user.getId():
-                print(expense_user_obj.getFirstName())
-                print(float(expense_user_obj.getOwedShare()))
                 total += float(expense_user_obj.getOwedShare())
         return total
 

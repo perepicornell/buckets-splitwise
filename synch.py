@@ -1,6 +1,7 @@
 import sys
-from datetime import datetime
-from dataclasses import dataclass
+import textwrap
+from datetime import datetime, timezone
+from dataclasses import dataclass, astuple
 
 from tabulate import tabulate
 from yaspin import yaspin
@@ -21,17 +22,30 @@ class ReportLine:
     i_owe: float = 0.0
     case: str = ''
     bucket_name: str = ''
-
-    def __list__(self):
-        r = []
-        for key, value in self.__dict__.items():
-            r.append(value)
-        return r
+    debug: str = ''
 
     def __setattr__(self, key, value):
-        if isinstance(value, str) and len(value) > 30:
-            value = value[:30] + '...'
+        value = str(value)
+        value_lines = textwrap.wrap(value, 30)
+        value = "\n".join(value_lines)
         super().__setattr__(key, value)
+
+
+@dataclass
+class Expense:
+    id: int
+    name: str
+    date: str
+    total_amount: float
+    i_paid: float
+    i_owe: float
+    case: str
+    bucket_name: str
+    bucket_id: int
+    already_exists: bool
+    existing_transactions: list
+    owed_by_others: float
+    is_cash: bool
 
 
 class SplitwiseToBucketsSynch:
@@ -75,7 +89,7 @@ class SplitwiseToBucketsSynch:
             spinner.ok("Done! 😻")
 
     def add_report_line(self):
-        self.report.append(self.report_line.__list__())
+        self.report.append(astuple(self.report_line))
 
     def print_report(self):
         columns = []
@@ -93,18 +107,33 @@ class SplitwiseToBucketsSynch:
 
     def process_sw_expenses(self):
         for expense in self.expenses:
+            exp_obj = self.get_expense_obj(expense)
             self.report_line = ReportLine()
-            self.handle_expense(expense)
+            self.report_line.total_amount = exp_obj.total_amount
+            self.report_line.date = exp_obj.date
+            self.report_line.i_paid = exp_obj.i_paid
+            self.report_line.i_owe = exp_obj.i_owe
+            self.report_line.bucket_name = exp_obj.bucket_name
+            self.report_line.name = exp_obj.name
+
+            try:
+                self.handle_expense(exp_obj)
+            except Exception as e:
+                self.report_line.debug = e
             self.add_report_line()
 
-    def handle_expense(self, expense):
-        # Expense object docs: https://splitwise.readthedocs.io/en/stable/api.html#splitwise.expense.Expense  #noqa
-        self.report_line.total_amount = expense.getCost()
-        date_sw = expense.getDate()
-        date_py = datetime.strptime(date_sw, '%Y-%m-%dT%H:%M:%SZ')
-        self.report_line.date = date_py
+    def get_expense_obj(self, expense):
+        # expense is this object: https://splitwise.readthedocs.io/en/stable/api.html#splitwise.expense.Expense  #noqa
+        obj = {}
 
-        paid_by_me, my_expense_user_obj = self.sw.get_my_expense_user_obj(
+        date_sw = expense.getDate()
+        date_py_utc = datetime.strptime(date_sw, '%Y-%m-%dT%H:%M:%SZ')
+        # SW sends the dates in UTC. Converting to local time.
+        obj['date'] = date_py_utc.replace(
+            tzinfo=timezone.utc
+        ).astimezone(tz=None)
+
+        my_expense_user_obj = self.sw.get_my_expense_user_obj(
             expense
         )
         if not my_expense_user_obj:
@@ -113,38 +142,64 @@ class SplitwiseToBucketsSynch:
                 "like Splitwise monkeys blew up something... skipping."
             )
 
-        paid_share = float(my_expense_user_obj.getPaidShare())
-        self.report_line.i_paid = float(paid_share)
-        owed_share = float(my_expense_user_obj.getOwedShare())
-        self.report_line.i_owe = owed_share
-        bucket_name = config['SplitwiseCategoriesToBucketNames'].get()[
+        obj['id'] = expense.getId()
+        obj['name'] = expense.getDescription()
+        obj['total_amount'] = self.sw_to_bk_amount(expense.getCost())
+        obj['i_paid'] = float(my_expense_user_obj.getPaidShare())
+        obj['i_owe'] = float(my_expense_user_obj.getOwedShare())
+        obj['owed_by_others'] = self.sw.get_owed_by_others(expense)
+        obj['is_cash'] = self.sw.is_cash(expense)
+        obj['bucket_name'] = config['SplitwiseCategoriesToBucketNames'].get()[
             expense.getCategory().getId()
         ]
-        self.report_line.bucket_name = bucket_name
-        bucket_id = self.bk.get_bucket_id(bucket_name)
-        self.report_line.name = expense.getDescription()
-
-        if self.bk.transaction_exist(expense.getId()):
-            self.report_line.case = "Already exists in Buckets, skipping."
-            return
+        obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
+        obj['existing_transactions'] = self.bk.get_transactions_by_fi_id(
+            expense.getId()
+        )
+        obj['already_exists'] = False
+        if len(obj['existing_transactions']) > 0:
+            obj['already_exists'] = True
 
         if expense.getPayment():
+            obj['case'] = 'payment_received'
+        elif obj['i_paid']:
+            obj['case'] = 'i_paid_something'
+        elif obj['i_owe']:
+            obj['case'] = 'i_owe_something'
+
+        return Expense(**obj)
+
+    def handle_expense(self, exp_obj):
+
+        if exp_obj.case == 'payment_received':
             """
             Not an expense but a payment received from another person (or
             that you paid to someone).
             """
-            self.report_line.case = "Payment received"
-            cost = self.sw_to_bk_amount(expense.getCost())
+            self.report_line.case = "Payment"
             # TO DO: how to know if it's positive or negative?
-            self.bk.create_transfer(
-                date=date_py,
-                amount=cost,
-                memo=expense.getDescription(),
-                fi_id=expense.getId(),
-                from_account='splitwise',
-                to_account='payment'
-            )
-        elif paid_by_me:
+            if exp_obj.already_exists:
+                try:
+                    self.bk.update_transfer(
+                        existing_transactions=exp_obj.existing_transactions,
+                        date=exp_obj.date,
+                        amount=exp_obj.total_amount,
+                        memo=exp_obj.name,
+                        from_account='splitwise',
+                        to_account='payment'
+                    )
+                except Exception as e:
+                    self.report_line.debug = e
+            else:
+                self.bk.create_transfer(
+                    date=exp_obj.date,
+                    amount=exp_obj.total_amount,
+                    memo=exp_obj.name,
+                    fi_id=exp_obj.id,
+                    from_account='splitwise',
+                    to_account='payment'
+                )
+        elif exp_obj.case == 'i_paid_something':
             """
             CASE A: Ticket that I paid
             Say I paid 50€ of which my share is 10€.
@@ -156,35 +211,61 @@ class SplitwiseToBucketsSynch:
 
             By now the expense Bucket is not set and needs to be set 
             manually after importing them.
+            
             """
-            self.report_line.case = "Case A (ticket I paid)"
-
-            # Creating T1
+            self.report_line.case = "I paid"
             account = 'payment'
-            if self.sw.is_cash(expense):
+            if exp_obj.is_cash:
                 account = 'cash'
-            self.bk.create_expense(
-                date=date_py,
-                amount=self.sw_to_bk_amount(owed_share, True),
-                memo=expense.getDescription(),
-                fi_id=expense.getId(),
-                general_cat=None,
-                bucket_id=bucket_id,
-                account=account
-            )
 
-            # Creating T2
-            owed_by_others = self.sw.get_owed_by_others(expense)
-            self.bk.create_transfer(
-                date=date_py,
-                amount=self.sw_to_bk_amount(owed_by_others),
-                memo=expense.getDescription(),
-                fi_id=expense.getId(),
-                from_account=account,
-                to_account='splitwise'
-            )
+            if exp_obj.already_exists:
+                try:
+                    # Updating 1st transaction (normal expense)
+                    self.bk.update_expense(
+                        existing_transactions=exp_obj.existing_transactions,
+                        date=exp_obj.date,
+                        amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
+                        memo=exp_obj.name,
+                        general_cat=None,
+                        bucket_id=exp_obj.bucket_id,
+                        account=account
+                    )
 
-        elif owed_share > 0:
+                    # Updating 2nd transaction (a transfer)
+                    self.bk.update_transfer(
+                        existing_transactions=exp_obj.existing_transactions,
+                        date=exp_obj.date,
+                        amount=self.sw_to_bk_amount(exp_obj.owed_by_others),
+                        memo=exp_obj.name,
+                        from_account=account,
+                        to_account='splitwise'
+                    )
+                except Exception as e:
+                    self.report_line.debug = e
+
+            else:
+                # Creating T1
+                self.bk.create_expense(
+                    date=exp_obj.date,
+                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
+                    memo=exp_obj.name,
+                    fi_id=exp_obj.id,
+                    general_cat=None,
+                    bucket_id=exp_obj.bucket_id,
+                    account=account
+                )
+
+                # Creating T2
+                self.bk.create_transfer(
+                    date=exp_obj.date,
+                    amount=self.sw_to_bk_amount(exp_obj.owed_by_others),
+                    memo=exp_obj.name,
+                    fi_id=exp_obj.id,
+                    from_account=account,
+                    to_account='splitwise'
+                )
+
+        elif exp_obj.case == 'i_owe_something':
             """
             CASE B: Ticket that someone else paid, in which I'm included
             Say someone paid 30€ and my share is 5€.
@@ -197,19 +278,30 @@ class SplitwiseToBucketsSynch:
             By now the expense Bucket is not set and needs to be set 
             manually after importing them.
             """
-            self.report_line.case = "Case B (paid by someone else)"
+            self.report_line.case = "They paid"
 
-            self.bk.create_expense(
-                date=date_py,
-                amount=self.sw_to_bk_amount(owed_share, True),
-                memo=expense.getDescription(),
-                fi_id=expense.getId(),
-                general_cat=None,
-                bucket_id=bucket_id,
-                account='splitwise'
-            )
+            if exp_obj.already_exists:
+                self.bk.update_expense(
+                    existing_transactions=exp_obj.existing_transactions,
+                    date=exp_obj.date,
+                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
+                    memo=exp_obj.name,
+                    general_cat=None,
+                    bucket_id=exp_obj.bucket_id,
+                    account='splitwise'
+                )
+            else:
+                self.bk.create_expense(
+                    date=exp_obj.date,
+                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
+                    memo=exp_obj.name,
+                    fi_id=exp_obj.id,
+                    general_cat=None,
+                    bucket_id=exp_obj.bucket_id,
+                    account='splitwise'
+                )
         else:
-            self.report_line.case = (
+            self.report_line.debug = (
                 "Error: this expense is marked as paid by others but then "
                 "your owed share is 0, this should be an Splitwise's API "
                 "mistake, check it out.")

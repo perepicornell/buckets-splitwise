@@ -1,4 +1,5 @@
 appName: SplitwiseToBuckets
+debug: false
 
 Buckets:
   BudgetFilePath: "/home/blah/docs/Buckets/tests.buckets"

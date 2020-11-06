@@ -1,5 +1,7 @@
 import sys
 import textwrap
+import traceback
+from decimal import Decimal, getcontext
 from datetime import datetime, timezone
 from dataclasses import dataclass, astuple
 
@@ -17,9 +19,9 @@ from splitwise.exception import SplitwiseUnauthorizedException
 class ReportLine:
     name: str = ''
     date: str = ''
-    total_amount: float = 0.0
-    i_paid: float = 0.0
-    i_owe: float = 0.0
+    total_amount: Decimal = 0.0
+    i_paid: Decimal = 0.0
+    i_owe: Decimal = 0.0
     case: str = ''
     bucket_name: str = ''
     debug: str = ''
@@ -36,16 +38,15 @@ class Expense:
     id: int
     name: str
     date: str
-    total_amount: float
-    i_paid: float
-    i_owe: float
+    total_amount: Decimal
+    i_paid: Decimal
+    i_owe: Decimal
     case: str
     bucket_name: str
     bucket_id: int
-    already_exists: bool
-    existing_transactions: list
-    owed_by_others: float
+    owed_by_others: Decimal
     is_cash: bool
+    is_payment: bool
 
 
 class SplitwiseToBucketsSynch:
@@ -97,14 +98,6 @@ class SplitwiseToBucketsSynch:
             columns.append(field)
         print(tabulate(self.report, columns, tablefmt="fancy_grid"))
 
-    @staticmethod
-    def sw_to_bk_amount(amount, negative=False):
-        if amount is not float:
-            amount = float(amount)
-        if negative:
-            amount = amount * -1
-        return int(round(amount * 100))
-
     def process_sw_expenses(self):
         for expense in self.expenses:
             exp_obj = self.get_expense_obj(expense)
@@ -119,6 +112,8 @@ class SplitwiseToBucketsSynch:
             try:
                 self.handle_expense(exp_obj)
             except Exception as e:
+                if config['debug'].get() is True:
+                    traceback.print_exc()
                 self.report_line.debug = e
             self.add_report_line()
 
@@ -144,167 +139,184 @@ class SplitwiseToBucketsSynch:
 
         obj['id'] = expense.getId()
         obj['name'] = expense.getDescription()
-        obj['total_amount'] = self.sw_to_bk_amount(expense.getCost())
-        obj['i_paid'] = float(my_expense_user_obj.getPaidShare())
-        obj['i_owe'] = float(my_expense_user_obj.getOwedShare())
+        obj['total_amount'] = Decimal(expense.getCost())
+        obj['i_paid'] = Decimal(my_expense_user_obj.getPaidShare())
+        obj['i_owe'] = Decimal(my_expense_user_obj.getOwedShare())
         obj['owed_by_others'] = self.sw.get_owed_by_others(expense)
         obj['is_cash'] = self.sw.is_cash(expense)
+        obj['is_payment'] = True if expense.getPayment() else False
         obj['bucket_name'] = config['SplitwiseCategoriesToBucketNames'].get()[
             expense.getCategory().getId()
         ]
+        # TO DO: put all buckets in a dict to make it 1 query
         obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
-        obj['existing_transactions'] = self.bk.get_transactions_by_fi_id(
-            expense.getId()
-        )
-        obj['already_exists'] = False
-        if len(obj['existing_transactions']) > 0:
-            obj['already_exists'] = True
 
-        if expense.getPayment():
-            obj['case'] = 'payment_received'
-        elif obj['i_paid']:
-            obj['case'] = 'i_paid_something'
-        elif obj['i_owe']:
-            obj['case'] = 'i_owe_something'
+        obj['case'] = 'deprecated'
 
         return Expense(**obj)
 
     def handle_expense(self, exp_obj):
+        """
+        The "4 transactions approach" explained:
 
-        if exp_obj.case == 'payment_received':
-            """
-            Not an expense but a payment received from another person (or
-            that you paid to someone).
-            """
-            self.report_line.case = "Payment"
-            # TO DO: how to know if it's positive or negative?
-            if exp_obj.already_exists:
-                try:
-                    self.bk.update_transfer(
-                        existing_transactions=exp_obj.existing_transactions,
-                        date=exp_obj.date,
-                        amount=exp_obj.total_amount,
-                        memo=exp_obj.name,
-                        from_account='splitwise',
-                        to_account='payment'
-                    )
-                except Exception as e:
-                    self.report_line.debug = e
-            else:
-                self.bk.create_transfer(
-                    date=exp_obj.date,
-                    amount=exp_obj.total_amount,
-                    memo=exp_obj.name,
-                    fi_id=exp_obj.id,
-                    from_account='splitwise',
-                    to_account='payment'
-                )
-        elif exp_obj.case == 'i_paid_something':
-            """
-            CASE A: Ticket that I paid
-            Say I paid 50€ of which my share is 10€.
-            We need to register 2 transactions in Buckets:
-            T1: An expense transaction for my share of the expense, charged
-            on bks.default_acc at the corresponding Bucket.
-            T2: A TRANSFER transaction from bks.default_acc to 
-            bks.splitwise_acc for the rest of the quantity that I paid.
+        Combining every possible situation in Splitwise, there's a maximum
+        of 4 transasctions that could happen.
 
-            By now the expense Bucket is not set and needs to be set 
-            manually after importing them.
+        The BucketManager driver is made in a way that if you try to do a 0€
+        amount transaction it will be ignored if it's the first time importing
+        it, but if it detects that we already have it registered, then it will
+        update the existing transactions and therefore turn them into 0€ ones.
+
+        This system also solves:
+        If after having changed, the expense needs a different combination
+        of transactions.
+        - If it needs less transactions than existing, we'll be passing all the
+        rest anyway with 0€, so they will be updated.
+          Example: It was a 1€ expense from payment + 24€ transfer to
+          splitwise account, but now it should be only 1 expense of 25€
+          to any of the accounts.
+        - If it needs more transactions than existing, now it will include the
+        amounts of the new transactions, therefore they will be created.
+          Example: it was 1 transfer and now it should be 1 transfer
+          + 1 expense from any of the accounts.
+
+        With this system if an expense is modified in Splitwise in so many ways
+        that goes through all the possible states, you might end up with a
+        transaction for the right amount and 3 other transactions for 0€.
+        At least that will give you a clue of what was going on but, more
+        importantly, in order to fix this you should remember to cancel your
+        friendship with whoever is messing it up with Splitwise so much.
+
+        But more practically, just delete the 0€ Buckets' transactions after
+        you verify that the expense details are finally correct in Splitwise.
+        """
+        payment_expense_details = {
+            'date': exp_obj.date,
+            'amount': 0.00,
+            'memo': exp_obj.name,
+            'fi_id': exp_obj.id,
+            'general_cat': None,
+            'bucket_id': exp_obj.bucket_id,
+            'account': 'cash' if exp_obj.is_cash else 'payment'
+        }
+
+        splitwise_expense_details = {
+            'date': exp_obj.date,
+            'amount': 0.00,
+            'memo': exp_obj.name,
+            'fi_id': exp_obj.id,
+            'general_cat': None,
+            'bucket_id': exp_obj.bucket_id,
+            'account': 'splitwise'
+        }
+
+        transfer_to_splitwise = {
+            'date': exp_obj.date,
+            'amount': 0.00,
+            'memo': exp_obj.name,
+            'fi_id': exp_obj.id,
+            'from_account': 'cash' if exp_obj.is_cash else 'payment',
+            'to_account': 'splitwise'
+        }
+
+        if exp_obj.is_payment:
+            """
+            In the incoming transfers you got paid some money, so your
+            Splitwise balance is decreased (in Splitwise app) and therefore
+            in Buckets a transfer is made from your splitwise account into
+            the account you got the payment.
             
+            That case is treated separately to make sure that only this
+            transaction is executed in that case.
+            
+            That's because if two create_or_update_transfers are executed,
+            we cannot apply the system of sending 0€ transactions even if we
+            don't need them, because for transfers the 0€ ones are processed
+            and updated.
+            Therefore: in multiple create_or_update_transfers, the last one
+            will override the prior.
             """
-            self.report_line.case = "I paid"
-            account = 'payment'
-            if exp_obj.is_cash:
-                account = 'cash'
-
-            if exp_obj.already_exists:
-                try:
-                    # Updating 1st transaction (normal expense)
-                    self.bk.update_expense(
-                        existing_transactions=exp_obj.existing_transactions,
-                        date=exp_obj.date,
-                        amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
-                        memo=exp_obj.name,
-                        general_cat=None,
-                        bucket_id=exp_obj.bucket_id,
-                        account=account
-                    )
-
-                    # Updating 2nd transaction (a transfer)
-                    self.bk.update_transfer(
-                        existing_transactions=exp_obj.existing_transactions,
-                        date=exp_obj.date,
-                        amount=self.sw_to_bk_amount(exp_obj.owed_by_others),
-                        memo=exp_obj.name,
-                        from_account=account,
-                        to_account='splitwise'
-                    )
-                except Exception as e:
-                    self.report_line.debug = e
-
-            else:
-                # Creating T1
-                self.bk.create_expense(
-                    date=exp_obj.date,
-                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
-                    memo=exp_obj.name,
-                    fi_id=exp_obj.id,
-                    general_cat=None,
-                    bucket_id=exp_obj.bucket_id,
-                    account=account
-                )
-
-                # Creating T2
-                self.bk.create_transfer(
-                    date=exp_obj.date,
-                    amount=self.sw_to_bk_amount(exp_obj.owed_by_others),
-                    memo=exp_obj.name,
-                    fi_id=exp_obj.id,
-                    from_account=account,
-                    to_account='splitwise'
-                )
-
-        elif exp_obj.case == 'i_owe_something':
-            """
-            CASE B: Ticket that someone else paid, in which I'm included
-            Say someone paid 30€ and my share is 5€.
-            We need 1 transaction to be registered in Buckets:
-            T1: An expense transaction charged at the bks.splitwise_acc 
-            account by the amount of my share of the expense, at the 
-            corresponding Bucket according to the Splitwise category of 
-            the expense. 
-
-            By now the expense Bucket is not set and needs to be set 
-            manually after importing them.
-            """
-            self.report_line.case = "They paid"
-
-            if exp_obj.already_exists:
-                self.bk.update_expense(
-                    existing_transactions=exp_obj.existing_transactions,
-                    date=exp_obj.date,
-                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
-                    memo=exp_obj.name,
-                    general_cat=None,
-                    bucket_id=exp_obj.bucket_id,
-                    account='splitwise'
-                )
-            else:
-                self.bk.create_expense(
-                    date=exp_obj.date,
-                    amount=self.sw_to_bk_amount(exp_obj.i_owe, True),
-                    memo=exp_obj.name,
-                    fi_id=exp_obj.id,
-                    general_cat=None,
-                    bucket_id=exp_obj.bucket_id,
-                    account='splitwise'
-                )
+            transfer_from_splitwise = {
+                'date': exp_obj.date,
+                'amount': exp_obj.total_amount,
+                'memo': exp_obj.name,
+                'fi_id': exp_obj.id,
+                'from_account': 'splitwise',
+                # If you're getting money in cash, put in the right account:
+                'to_account': 'cash' if exp_obj.is_cash else 'payment'
+            }
+            self.bk.create_or_update_transfer(**transfer_from_splitwise)
         else:
-            self.report_line.debug = (
-                "Error: this expense is marked as paid by others but then "
-                "your owed share is 0, this should be an Splitwise's API "
-                "mistake, check it out.")
+            if exp_obj.i_paid < exp_obj.i_owe:
+                """
+                Say..
+                I paid: 1€              I owe: 25€
+                Paid by other: 49€      Owed by other: 25€
+                
+                Means 1 expense is the 1€ from payments account,
+                and another expense is 24€ from splitwise account.
+
+                But if...
+                I paid: 0€              I owe: 25€
+                Paid by other: 50€      Owed by other: 25€
+                
+                There's only one expense of 24€ from splitwise account.
+                Nonetheless we don't know if that's an expense already
+                existing in Buckets (previously marked as I paid something) and
+                now it's modified. To handle that situation we need the 0€
+                expense to be passed to BucketManager, so it will detect that
+                it's an update and set the existing payments account expense
+                to 0€.
+                Not super elegant to end up with a 0€ transaction in Buckets,
+                but it's the most informative and less problematic option I
+                came up with.
+                """
+                payment_amount = exp_obj.i_paid * -1
+                payment_expense_details['amount'] = payment_amount
+                splitwise_amount = exp_obj.i_owe - exp_obj.i_paid
+                splitwise_expense_details['amount'] = splitwise_amount
+
+            if exp_obj.i_paid == exp_obj.i_owe:
+                """
+                Say..
+                I paid: 25€             I owe: 25€
+                Paid by other: 25€      Owed by other: 25€
+    
+                Means only 1 expense of 25€ from payments account.
+                
+                """
+                payment_expense_details['amount'] = exp_obj.i_paid * -1
+            if exp_obj.i_paid > exp_obj.i_owe:
+                """
+                Say..
+                I paid: 49€             I owe: 25€
+                Paid by other: 1€       Owed by other: 25€
+
+                Means:
+                - One 25€ expense from payments account,
+                - A transfer from payments account to splitwise account
+                  for 24€.
+
+                Say..
+                I paid: 13€             I owe: 0€
+                Paid by other: 0€       Owed by other: 13€
+
+                Means:
+                - A transfer from payments acc to splitwise acc. for 13€
+                So we can leave the payment_expense_details bc it's going to
+                be 0€ and not do anything anyway.
+                """
+                payment_amount = exp_obj.i_owe * -1
+                payment_expense_details['amount'] = payment_amount
+                transfer_amount = exp_obj.i_paid - exp_obj.i_owe
+                transfer_to_splitwise['amount'] = transfer_amount
+
+            print(f"Starting {transfer_to_splitwise=}")
+            self.bk.create_or_update_transfer(**transfer_to_splitwise)
+            print(f"Starting {payment_expense_details=}")
+            self.bk.create_or_update_expense(**payment_expense_details)
+            print(f"Starting {splitwise_expense_details=}")
+            self.bk.create_or_update_expense(**splitwise_expense_details)
 
     def run(self):
         self.process_sw_expenses()

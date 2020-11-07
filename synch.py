@@ -1,3 +1,16 @@
+"""
+La part de detectar si existeixen o no les transaccions per fer correctament
+l'update o l'insert sembla ser que ja funciona.
+
+NEXT:
+
+No està categoritzant les transaccions, cal revisar com fer-ho en el nou
+sistema, pel tema que ara pot fer un update si han canviat la categoria
+però l'update només s'ha de fer si la nova no és empty i coincideix amb
+una de les que tinguem configurades al settings.
+
+"""
+
 import sys
 import textwrap
 import traceback
@@ -159,8 +172,8 @@ class SplitwiseToBucketsSynch:
         """
         The "4 transactions approach" explained:
 
-        Combining every possible situation in Splitwise, there's a maximum
-        of 4 transasctions that could happen.
+        Combining every possible situation in Splitwise, for each SW expense
+        there's a maximum of 4 transasctions that could happen in buckets.
 
         The BucketManager driver is made in a way that if you try to do a 0€
         amount transaction it will be ignored if it's the first time importing

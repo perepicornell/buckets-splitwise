@@ -131,7 +131,7 @@ class BucketManager:
         return self.cursor.fetchall()
 
     def get_bucket_transaction_by_account_trans_id(self, account_trans_id):
-        cmd = f"SELECT * FROM bucket_transaction WHERE id=?"
+        cmd = f"SELECT * FROM bucket_transaction WHERE account_trans_id=?"
         values = (account_trans_id, )
         self.cursor.execute(cmd, values)
         return self.cursor.fetchall()
@@ -166,13 +166,20 @@ class BucketManager:
             self, **kwargs
     ):
         """
-        :param kwargs: 'date', 'amount', 'memo', 'from_account',
+        :param kwargs: 'date', 'amount', 'memo', 'fi_id', 'from_account',
             'to_account'
         """
-        kwargs['general_cat'] = 'transfer'
-        self.create_account_transaction(**kwargs)
-        kwargs['amount'] *= -1
-        self.create_account_transaction(**kwargs)
+        self.create_account_transaction(
+            date=kwargs['date'], account_id=kwargs['to_account'],
+            amount=kwargs['amount'], memo=kwargs['memo'],
+            fi_id=kwargs['fi_id'], general_cat='transfer'
+        )
+        amount = kwargs['amount'] * -1
+        self.create_account_transaction(
+            date=kwargs['date'], account_id=kwargs['from_account'],
+            amount=amount, memo=kwargs['memo'], fi_id=kwargs['fi_id'],
+            general_cat='transfer'
+        )
 
     def update_transfer(
             self, existing_transfer_transactions, date, amount, memo,
@@ -236,9 +243,9 @@ class BucketManager:
         transaction_id = self.create_account_transaction(
             date, account, amount, memo, fi_id, general_cat
         )
-        # self.categorize_transaction(
-        #     bucket_id, date, amount, memo, transaction_id
-        # )
+        self.categorize_transaction(
+            bucket_id, date, amount, memo, transaction_id
+        )
 
     def update_expense(
         self, existing_expense_transactions, date, amount, memo, general_cat,
@@ -365,6 +372,7 @@ class BucketManager:
 
     def categorize_transaction(self, bucket_id, date, amount, memo, trans_id):
         existing = self.get_bucket_transaction_by_account_trans_id(trans_id)
+        print(f"Categorizing new expense. {existing=}")
         if len(existing) == 0:
             # Creating a bucket_transaction without bucket_id is possible but
             # it litters the database with unused data. Just skip it and when

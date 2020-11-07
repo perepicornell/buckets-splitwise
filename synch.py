@@ -1,26 +1,14 @@
-"""
-La part de detectar si existeixen o no les transaccions per fer correctament
-l'update o l'insert sembla ser que ja funciona.
-
-NEXT:
-
-No està categoritzant les transaccions, cal revisar com fer-ho en el nou
-sistema, pel tema que ara pot fer un update si han canviat la categoria
-però l'update només s'ha de fer si la nova no és empty i coincideix amb
-una de les que tinguem configurades al settings.
-
-"""
-
 import sys
 import textwrap
 import traceback
-from decimal import Decimal, getcontext
+from decimal import Decimal
 from datetime import datetime, timezone
 from dataclasses import dataclass, astuple
 
 from tabulate import tabulate
 from yaspin import yaspin
 from yaspin.spinners import Spinners
+from tqdm import tqdm
 
 from settings import config
 from buckets_manager import BucketManager
@@ -35,7 +23,6 @@ class ReportLine:
     total_amount: Decimal = 0.0
     i_paid: Decimal = 0.0
     i_owe: Decimal = 0.0
-    case: str = ''
     bucket_name: str = ''
     debug: str = ''
 
@@ -54,7 +41,6 @@ class Expense:
     total_amount: Decimal
     i_paid: Decimal
     i_owe: Decimal
-    case: str
     bucket_name: str
     bucket_id: int
     owed_by_others: Decimal
@@ -112,7 +98,7 @@ class SplitwiseToBucketsSynch:
         print(tabulate(self.report, columns, tablefmt="fancy_grid"))
 
     def process_sw_expenses(self):
-        for expense in self.expenses:
+        for expense in tqdm(self.expenses, desc="Synchronizing expenses..."):
             exp_obj = self.get_expense_obj(expense)
             self.report_line = ReportLine()
             self.report_line.total_amount = exp_obj.total_amount
@@ -163,8 +149,6 @@ class SplitwiseToBucketsSynch:
         ]
         # TO DO: put all buckets in a dict to make it 1 query
         obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
-
-        obj['case'] = 'deprecated'
 
         return Expense(**obj)
 
@@ -287,7 +271,7 @@ class SplitwiseToBucketsSynch:
                 payment_amount = exp_obj.i_paid * -1
                 payment_expense_details['amount'] = payment_amount
                 splitwise_amount = exp_obj.i_owe - exp_obj.i_paid
-                splitwise_expense_details['amount'] = splitwise_amount
+                splitwise_expense_details['amount'] = splitwise_amount * -1
 
             if exp_obj.i_paid == exp_obj.i_owe:
                 """
@@ -324,11 +308,8 @@ class SplitwiseToBucketsSynch:
                 transfer_amount = exp_obj.i_paid - exp_obj.i_owe
                 transfer_to_splitwise['amount'] = transfer_amount
 
-            print(f"Starting {transfer_to_splitwise=}")
             self.bk.create_or_update_transfer(**transfer_to_splitwise)
-            print(f"Starting {payment_expense_details=}")
             self.bk.create_or_update_expense(**payment_expense_details)
-            print(f"Starting {splitwise_expense_details=}")
             self.bk.create_or_update_expense(**splitwise_expense_details)
 
     def run(self):

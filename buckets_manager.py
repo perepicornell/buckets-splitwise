@@ -227,7 +227,6 @@ class BucketManager:
         existing_transactions = self.get_expense_transactions_by_fi_id(
             kwargs['fi_id'], kwargs['account']
         )
-        print(f"existing transactions: {existing_transactions}")
         if len(existing_transactions) > 0:
             del kwargs['fi_id']
             self.update_expense(existing_transactions, **kwargs)
@@ -291,9 +290,9 @@ class BucketManager:
         # TO DO: categorization on update, ONLY IF there's one of the valid
         # buckets in config, to the Splitwise data will prevail but not
         # erase the manually categorized buckets.
-        # self.categorize_transaction(
-        #     bucket_id, date, amount, memo, expense_t[0]
-        # )
+        self.categorize_transaction(
+            bucket_id, date, amount, memo, expense_t[0]
+        )
 
     """
     Managing transactions
@@ -328,7 +327,6 @@ class BucketManager:
             fi_id,
             general_cat
         )
-        print(f"creating, {values=}")
         self.cursor.execute(cmd, values)
         self.connection.commit()
         created_id = self.cursor.lastrowid
@@ -356,7 +354,6 @@ class BucketManager:
             general_cat,
             trans_id
         )
-        print(f"updating, {values=}")
         self.cursor.execute(cmd, values)
         self.connection.commit()
         if self.cursor.rowcount < 0:
@@ -372,7 +369,6 @@ class BucketManager:
 
     def categorize_transaction(self, bucket_id, date, amount, memo, trans_id):
         existing = self.get_bucket_transaction_by_account_trans_id(trans_id)
-        print(f"Categorizing new expense. {existing=}")
         if len(existing) == 0:
             # Creating a bucket_transaction without bucket_id is possible but
             # it litters the database with unused data. Just skip it and when

@@ -68,6 +68,8 @@ class SplitWiseManager:
         return self.instance.getComments(expense_id)
 
     def is_cash(self, expense):
+        if expense.getDetails() == config['ExpensesCashKeyword'].get():
+            return True
         if expense.getCommentsCount() > 0:
             comments = self.get_expense_comments(expense.getId())
             for comment in comments:

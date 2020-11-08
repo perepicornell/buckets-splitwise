@@ -46,6 +46,7 @@ class Expense:
     owed_by_others: Decimal
     is_cash: bool
     is_payment: bool
+    is_deleted: bool
 
 
 class SplitwiseToBucketsSynch:
@@ -149,10 +150,15 @@ class SplitwiseToBucketsSynch:
         ]
         # TO DO: put all buckets in a dict to make it 1 query
         obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
-
+        obj['is_deleted'] = True if expense.getDeletedAt() else False
         return Expense(**obj)
 
     def handle_expense(self, exp_obj):
+        if exp_obj.is_deleted:
+            self.bk.delete_expense(exp_obj)
+            self.report_line.debug = 'deleted'
+            return
+
         """
         The "4 transactions approach" explained:
 

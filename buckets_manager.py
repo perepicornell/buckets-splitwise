@@ -425,6 +425,27 @@ class BucketManager:
         self.cursor.execute(cmd, values)
         self.connection.commit()
 
+    def delete_expense(self, expense):
+        cmd = f"SELECT * FROM account_transaction WHERE fi_id=?"
+        values = (expense.id, )
+        self.cursor.execute(cmd, values)
+        transactions = self.cursor.fetchall()
+        trans_ids = []
+        for transaction in transactions:
+            if transaction[7] != 'transfer':
+                trans_ids.append(transaction[0])
+        if len(trans_ids) > 0:
+            print(trans_ids)
+            cmd = (f"DELETE FROM bucket_transaction WHERE account_trans_id "
+                   f"in ({','.join(['?']*len(trans_ids))})")
+            print(cmd)
+            self.cursor.execute(cmd, trans_ids)
+            self.cursor.fetchall()
+        cmd = "DELETE FROM account_transaction WHERE fi_id = ?"
+        values = (expense.id, )
+        self.cursor.execute(cmd, values)
+        self.cursor.fetchall()
+
     @staticmethod
     def decimal_to_bk_amount(amount):
         if amount is not float:

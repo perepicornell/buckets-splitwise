@@ -2,22 +2,116 @@
 
 ## Installation
 
-### 1. Clone or download the files
+You need to set up 3 things for it to work:
 
-In the [app's repository](https://github.com/perepicornell/buckets-splitwise), get the
-files by downloading them as .zip or just clone the repo in some folder.
+1. Buckets.
+2. Your Splitwise account.
+3. This script itself.
 
-### 2. Environment
-You need the proper version of Python and some third party packages installed in order to
-be able to run the script.
-There's an app call Poetry that handles that for you, and it creates a "virtual environment",
-which is like an "enclosed space" in which Python and the packages are installed inside, instead of installing
-everything in your system and making a mess.
+### 1. Setting up Buckets
 
-Check their [website](https://python-poetry.org/) website for installation instructions.
+This script synchronizes the transactions from your Splitwise account into
+[Bucket's](https://www.budgetwithbuckets.com/) budget.
 
-To create a virtual environment and install the dependencies specified in pyproject.toml file,
-inside the app's folder run:
+To have Buckets prepared to work with this script is fairly simple.
+
+You just need:
+
+A) A configuration of accounts like this:
+
+- An Account for your Splitwise balance. Name it however you want.
+- An Account for "bank payments". By default, this script assumes that everything that every
+Splitwise expense that you paid, you paid it from the same bank account. 
+If you are already a Buckets user, you might have this"main account" already. Any name is valid.
+- An Account for "cash payments", again any name is valid. More about it further in the docs.
+
+B) The right initial balance in your Splitwise account in Buckets:
+
+The simplest way is to set the balance to the current balance you have in 
+Splitwise, and further on when you set up the script, remember to set the
+`ExpensesDatedAfter` setting to today, so it will start synching your new
+Splitwise transactions starting from tomorrow.
+
+Beware that if anyone modifies, creates or delete a transaction in Splitwise 
+before that date, your Splitwise balance will change and will not match anymore
+the balance in Buckets.
+
+To avoid that you can let the script to the default synching time span, which
+is 90 days, and then adjust the Splitwise's account balance in Buckets to the
+current one.
+
+By doing that, if any change is done in Splitwise (for transactions not older
+than 90 days) it will be reflected correctly in Buckets the next time you run 
+the script.
+
+But, of course, you will have to clean up a lot your Buckets transactions 
+within these 3 months, as you will end up with your old system of tracking 
+Splitwise overlapped with that new one.
+
+In any case, just do some experimenting, but firstly **make sure to
+duplicate your budget file to have a fresh backup**, until you figured out
+the best way for you to set the initial balance. 
+
+### 2. Create Splitwise app for API access
+
+To allow connections to its API (which is the interface that Splitwise provides for apps
+to access their data) we cannot just tell the script your Splitwise's login and
+password, instead we need an *authorization token* that Splitwise will
+generate and give it to you. Think of it as if it's a password but for accessing
+their API instead of their normal interface.
+
+Another requirement in order to obtain a token is to create your own *Splitwise 
+application*.
+
+Open this URL and then "Register your application":
+ 
+https://secure.splitwise.com/oauth_clients
+
+Put any data you want in it, but put that in the callback url field:
+http://localhost:1337/generate_token/
+
+Otherwise is not going to work.
+
+That's all for now, later we'll use the script to generate the token.
+
+### 3. "Install" the script
+
+Currently this is not an application that you can just download and run, but
+the source code in Python.
+
+This means that you need to download the source code to your computer and 
+set up an environment (by installing a couple of things) so you can run the
+script.
+
+I'll take a look on how to distribute python scripts compiled or in some way 
+that saves you from these next steps, but for now that's what I have!
+
+For the installation and also for running the script you need to use the
+command line, by opening the corresponding terminal window of your OS.
+
+If you don't know how to change the current folder and run commands in a 
+terminal, look for "command line tutorial" at some search engine before 
+continuing.
+
+#### 1. Clone or download the files
+
+In the [app's repository](https://github.com/perepicornell/buckets-splitwise), 
+get the files by downloading them as .zip or just clone the repo in some 
+folder.
+
+#### 2. Environment
+You need the proper version of Python and some third party packages installed 
+in order to be able to run the script.
+There's an app call Poetry that handles that for you, and it creates a "virtual
+environment", which is like an "enclosed space" in which Python and the 
+packages are installed inside, instead of installing
+everything directly in your system and making a mess.
+
+Check their [website](https://python-poetry.org/) website and follow
+the installation instructions.
+
+To create the virtual environment and install the dependencies go to the 
+app's folder and run:
 
     poetry install
 
@@ -26,48 +120,42 @@ Then get inside the virtual environment's shell by doing:
     poetry shell
 
 At this point, when you run python programs you'll be running them inside the virtual environment.
-Whenever you want to run the script again you'll have to get inside that shell again (by
-using the same `poetry shell` command), otherwise if you just go to the folder and try to
+
+**Remember:** In the future, to run the script again you'll have to get inside
+ that *virtual environment's shell* first (by using the same `poetry shell` 
+ command), otherwise if you just go to the folder and try to
 run it you'll see some errors and will not work.
 
-### 3. Create Splitwise app for API access
+#### 4. Settings
 
-To allow connections to its API (which is the interface that Splitwise provides for apps
-to access their data) Splitwise needs to create a Splitwise App.
-Then when you or any user wants to use a script that access the API, Splitwise is going to
-ask the user to authorize the app to access their data.
-
-In apps that are a web service, they have their own app created and the users only need to
-accept the authorization when they want to use it.
-
-As this is a local script there is not such app, so in order to obtain the necessary credentials
-for the script to run you need to create your own Splitwise app.
-
-Open this URL and then "Register your application":
- 
-https://secure.splitwise.com/oauth_clients
- 
-Put any data you want in it, but put that in the callback url you put:
-http://localhost:1337/generate_token/
-
-Otherwise is not going to work. 
-
-### 4. Settings
-
-You need to duplicate the `config.template.yaml` file and call it `config.yaml`:
-
-    cp config.template.yaml config.yaml
+You need to duplicate the `config.template.yaml` file and call it 
+`config.yaml`.
     
-And edit it with a plain text editor, like vim for instance: 
+Then edit it with a plain text editor, like vim for instance: 
     
     vim config.yaml
 
-And fill it with your information. By now leave the LastValidToken values empty.
-Read the config.yaml comments carefully, there are crucial instructions there!
+In Windows, Notepad is also a plain text editor.
 
-### 5. Generate Spliwise token
+The settings file itself is full with tips about how to fill the values.
 
-To generate the token run:
+Nonetheless, some clarifications:
+
+`CallbackUrl`: If for some reason you want to change that, then you have to
+change it also in your Splitwise's application settings or it will not work.
+
+`ConsumerKey` and `ConsumerSecret`:  These keys belong to your newly created
+Splitwise application. To obtain them, access again the 
+[URL that you used before](https://secure.splitwise.com/oauth_clients) for
+creating the app and go to the app's settings.
+
+`LastValidToken`: leave it empty for now.
+
+#### 5. Generate Spliwise token
+
+Having the `ConsumerKey` and `ConsumerSecret` settings saved, we can now
+generate the token. 
+Run:
 
     python authenticate.py
     
@@ -76,43 +164,42 @@ And follow the instructions.
 You should only need to generate it once, unless Splitwise revokes tokens for
 some reason, if at some point it stops working just generate it again.
 
-### 6. Launch synchronization
+When you end up with the newly generated token copied to `LastValidToken` 
+settings, you're finally done with the installation and configuration, 
+congratulations!
 
-Before your first run, I strongly recommend you to make a backup of your budget
-file!
-You may need to adjust many things in the settings (like the SplitwiseCategoriesToBucketNames)
-before it runs as smooth as you want, so, do all this testing in a dummy copy.
-
-Having now a valid token in your config.yaml file, run...
-
-    python synch.py
-    
 ## Usage
 
-If you already had your own system for entering the Splitwise expenses into Buckets,
-you need to set the date of the last expense you entered (or today's date, if you're up to date)
-in order to prevent duplicating entries.
+**Before your first run, I strongly recommend you to make a backup of your 
+budget file!**
 
-- Locate the last expense in Splitwise that you entered in Buckets and make sure that
-all the transactions from this day are inserted in Buckets.
-- Then write down that date in the config file in this format:
+To run the synchronization, go inside the shell of your virtual environment
+(if you're not already there) by following the same steps than during the
+set-up:
 
+Go to the folder where you cloned the script and run
 
-    ExpensesDatedAfter: "2020-08-26"
-    
-Remember that if you or someone enters an expense older than this date, the script is not
-going to synchronize it.
+`poetry shell`
 
-- In Buckets, create an Account for Splitwise (as if it's another bank account), and set its 
-initial balance to your global balance in Splitwise.
+Then you can run:
 
-With this approach, you'll have your Splitwise balance reflected in your accounts, 
-therefore, Buckets is going to think that you have this money at your disposition.
-Obviously that's not actual money that you have access to but money that other
- people owes you.
+`python synch.py`
 
+Whenever there's any change in the Splitwise transactions (created, updated or
+deleted), run the script again and the changes will be reflected.
 
-### How do I register it when someone pays me their debt with me?
+That's true as long as it's a change dated after the `ExpensesDatedAfter`date 
+and within the `ExpensesDaysAgo` limit. For older changes, you will have to
+reproduce them manually in Buckets. 
+
+You cannot set an immense number of days in `ExpensesDaysAgo` and expect to 
+work because Splitwise have a limit of expenses they can send to you for each
+petition. I don't know the number, they just say something like *a big enough
+limit*.
+
+## Some potential doubts and specific cases
+
+### How do I register it when someone pays me their Splitwise debt to me?
 
 This is going to automatically be imported in your budget, as these payments are 
 included in the expenses retrieved from Splitwise.
@@ -123,17 +210,11 @@ I still have to implement this, by now, manually create a transaction in Buckets
 
 ### What if an expense is modified in Splitwise?
 
-Still to be developed, but what's going to happen is:
-
-The script is going to update all the transactions in your Buckets according
+The script updates all the transactions in your Buckets according
 to the latest data obtained from Splitwise, therefore, the changes will be reflected.
-But that only works if the modified expense is newer than the last expense retrieved,
-according to ExpensesDaysAgo and ExpensesLimit settings.
 
 If an expense that is older than that or that will not be retrieved because of 
 the limit is modified, the you need to locate it in Buckets and modify it manually.
-
-# Potential problems or doubts
 
 ### The synchronization is importing an expense under a certain category (bucket), then I change it, but next time I run the script it changes back
 

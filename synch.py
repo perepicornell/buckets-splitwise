@@ -100,6 +100,8 @@ class SplitwiseToBucketsSynch:
 
     def process_sw_expenses(self):
         for expense in tqdm(self.expenses, desc="Synchronizing expenses..."):
+            if self.is_debt_consolidation(expense):
+                continue
             exp_obj = self.get_expense_obj(expense)
             self.report_line = ReportLine()
             self.report_line.total_amount = exp_obj.total_amount
@@ -116,6 +118,29 @@ class SplitwiseToBucketsSynch:
                     traceback.print_exc()
                 self.report_line.debug = e
             self.add_report_line()
+
+    @staticmethod
+    def is_debt_consolidation(expense):
+        """
+        When someone settles the debt with you, Splitwise is going to create a
+        "Payment" transaction for the total of the amount that is handled
+        below at the "if exp_obj.is_payment" block and, in Buckets, it
+        correctly adds that amount to your bank account and deducts it from
+        your splitwise account.
+
+        But when this debt is distributed along different groups and also in
+        non-group expenses, in addition to this transaction Splitwise creates
+        some other ones to make the balance inside each group right.
+
+        This needs to be ignored or they create transfers in Buckets that are
+        not real.
+        """
+        if (
+                expense.getPayment() is False
+                and expense.getCreationMethod() == 'debt_consolidation'
+        ):
+            return True
+        return False
 
     def get_expense_obj(self, expense):
         # expense is this object: https://splitwise.readthedocs.io/en/stable/api.html#splitwise.expense.Expense  #noqa
@@ -139,18 +164,26 @@ class SplitwiseToBucketsSynch:
 
         obj['id'] = expense.getId()
         obj['name'] = expense.getDescription()
+        obj['is_payment'] = True if expense.getPayment() else False
         obj['total_amount'] = Decimal(expense.getCost())
         obj['i_paid'] = Decimal(my_expense_user_obj.getPaidShare())
         obj['i_owe'] = Decimal(my_expense_user_obj.getOwedShare())
         obj['owed_by_others'] = self.sw.get_owed_by_others(expense)
         obj['is_cash'] = self.sw.is_cash(expense)
-        obj['is_payment'] = True if expense.getPayment() else False
         obj['bucket_name'] = config['SplitwiseCategoriesToBucketNames'].get()[
             expense.getCategory().getId()
         ]
         # TO DO: put all buckets in a dict to make it 1 query
         obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
         obj['is_deleted'] = True if expense.getDeletedAt() else False
+
+        # The fact that a transaction in your bank account ends up split in
+        # two transactions in Buckets makes it more difficult to verify that
+        # everything is up to date.
+        # Adding the total paid at the name makes it easier to track.
+        if obj['i_paid'] > 0:
+            obj['name'] = f"[{obj['i_paid']}] {obj['name']}"
+
         return Expense(**obj)
 
     def handle_expense(self, exp_obj):

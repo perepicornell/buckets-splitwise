@@ -67,8 +67,8 @@ class SplitWiseManager:
     def get_expense_comments(self, expense_id):
         return self.instance.getComments(expense_id)
 
-    def is_cash(self, expense):
-        if expense.getDetails() == config['ExpensesCashKeyword'].get():
+    def expense_has_keyword(self, expense, keyword):
+        if expense.getDetails() == keyword:
             return True
         if expense.getCommentsCount() > 0:
             comments = self.get_expense_comments(expense.getId())
@@ -77,10 +77,20 @@ class SplitWiseManager:
                 content = comment.getContent()
                 if (
                     user.getId() == self.current_user.getId()
-                    and content == config['ExpensesCashKeyword'].get()
+                    and content == keyword
                 ):
                     return True
         return False
+
+    def is_cash(self, expense):
+        return self.expense_has_keyword(
+            expense, config['ExpensesCashKeyword'].get()
+        )
+
+    def expense_is_ignored(self, expense):
+        return self.expense_has_keyword(
+            expense, config['ExpensesIgnoreKeyword'].get()
+        )
 
     def get_my_expense_user_obj(self, expense):
         """

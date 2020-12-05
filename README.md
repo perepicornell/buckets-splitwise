@@ -197,6 +197,24 @@ work because Splitwise have a limit of expenses they can send to you for each
 petition. I don't know the number, they just say something like *a big enough
 limit*.
 
+## Flagging expenses to control synch behavior
+
+### Cash expenses
+
+In Splitwise, add a comment or note to an expense with the keyword that you
+specified at the `ExpensesCashKeyword` config value (by default is 'cash').
+
+Next time you run the script, this expense is going to be deducted from the
+Buckets account that you specified that is for cash at the 
+`AccountsKeywords.cash` setting, instead of the `AccountsKeywords.payment` 
+account.
+
+### Expenses to be ignored
+
+Flagging the expense with the word that you specified at `ExpensesIgnoreKeyword`
+setting (by default, 'nosynch'), will make the script to completely ignore
+that expense.
+
 ## Some potential doubts and specific cases
 
 ### How do I register it when someone pays me their Splitwise debt to me?

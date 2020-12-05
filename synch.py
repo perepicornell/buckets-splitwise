@@ -45,6 +45,7 @@ class Expense:
     bucket_id: int
     owed_by_others: Decimal
     is_cash: bool
+    ignore: bool
     is_payment: bool
     is_deleted: bool
 
@@ -111,6 +112,10 @@ class SplitwiseToBucketsSynch:
             self.report_line.bucket_name = exp_obj.bucket_name
             self.report_line.name = exp_obj.name
 
+            if exp_obj.ignore:
+                self.report_line.debug = "ignored"
+                continue
+
             try:
                 self.handle_expense(exp_obj)
             except Exception as e:
@@ -170,6 +175,7 @@ class SplitwiseToBucketsSynch:
         obj['i_owe'] = Decimal(my_expense_user_obj.getOwedShare())
         obj['owed_by_others'] = self.sw.get_owed_by_others(expense)
         obj['is_cash'] = self.sw.is_cash(expense)
+        obj['ignore'] = self.sw.expense_is_ignored(expense)
         obj['bucket_name'] = config['SplitwiseCategoriesToBucketNames'].get()[
             expense.getCategory().getId()
         ]

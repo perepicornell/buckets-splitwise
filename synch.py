@@ -114,6 +114,7 @@ class SplitwiseToBucketsSynch:
 
             if exp_obj.ignore:
                 self.report_line.debug = "ignored"
+                self.add_report_line()
                 continue
 
             try:

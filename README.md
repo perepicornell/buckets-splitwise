@@ -20,7 +20,7 @@ You just need:
 A) A configuration of accounts like this:
 
 - An Account for your Splitwise balance. Name it however you want.
-- An Account for "bank payments". By default, this script assumes that everything that every
+- An Account for "bank payments". By default, this script assumes that every
 Splitwise expense that you paid, you paid it from the same bank account. 
 If you are already a Buckets user, you might have this"main account" already. Any name is valid.
 - An Account for "cash payments", again any name is valid. More about it further in the docs.
@@ -57,7 +57,7 @@ the best way for you to set the initial balance.
 To allow connections to its API (which is the interface that Splitwise provides for apps
 to access their data) we cannot just tell the script your Splitwise's login and
 password, instead we need an *authorization token* that Splitwise will
-generate and give it to you. Think of it as if it's a password but for accessing
+generate and give to you. Think of it as if it's a password but for accessing
 their API instead of their normal interface.
 
 Another requirement in order to obtain a token is to create your own *Splitwise 

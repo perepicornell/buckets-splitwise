@@ -36,6 +36,11 @@ Splitwise:
   # In order to register the expenses paid in cash from the right account,
   # in your Splitwise expense add a comment with the following keyword.
   ExpensesCashKeyword: "cash"
+  # Add a comment or note with the following word to your Splitwise expense
+  # in order to ignore it when synchronizing.
+  # Doing so means it'll be just ignored, therefore if it was already imported
+  # before you tag the expense, running synch again is not going to delete it.
+  ExpensesIgnoreKeyword: "nosynch"
 
 # These are all Splitwise's categories indexed by its ID.
 # You can assign any of them to a bucket by writing the bucket name in the

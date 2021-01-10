@@ -46,6 +46,7 @@ class Expense:
     owed_by_others: Decimal
     is_cash: bool
     ignore: bool
+    not_involved: bool
     is_payment: bool
     is_deleted: bool
 
@@ -117,6 +118,11 @@ class SplitwiseToBucketsSynch:
                 self.add_report_line()
                 continue
 
+            if exp_obj.not_involved:
+                self.report_line.debug = "not involved"
+                self.add_report_line()
+                continue
+
             try:
                 self.handle_expense(exp_obj)
             except Exception as e:
@@ -159,21 +165,10 @@ class SplitwiseToBucketsSynch:
             tzinfo=timezone.utc
         ).astimezone(tz=None)
 
-        my_expense_user_obj = self.sw.get_my_expense_user_obj(
-            expense
-        )
-        if not my_expense_user_obj:
-            raise ValueError(
-                "Error: Found an expense without any UserExpense, looks "
-                "like Splitwise monkeys blew up something... skipping."
-            )
-
         obj['id'] = expense.getId()
         obj['name'] = expense.getDescription()
         obj['is_payment'] = True if expense.getPayment() else False
         obj['total_amount'] = Decimal(expense.getCost())
-        obj['i_paid'] = Decimal(my_expense_user_obj.getPaidShare())
-        obj['i_owe'] = Decimal(my_expense_user_obj.getOwedShare())
         obj['owed_by_others'] = self.sw.get_owed_by_others(expense)
         obj['is_cash'] = self.sw.is_cash(expense)
         obj['ignore'] = self.sw.expense_is_ignored(expense)
@@ -183,6 +178,25 @@ class SplitwiseToBucketsSynch:
         # TO DO: put all buckets in a dict to make it 1 query
         obj['bucket_id'] = self.bk.get_bucket_id(obj['bucket_name'])
         obj['is_deleted'] = True if expense.getDeletedAt() else False
+
+        my_expense_user_obj = self.sw.get_my_expense_user_obj(
+            expense
+        )
+        if not my_expense_user_obj:
+            """
+            Splitwise might send you expenses in which you are not 
+            involved at all. For example if you are in a group and someone
+            pays some debt to someone else in the group, you'll see in 
+            Splitwise that they did this transaction, and the API will also
+            retrieve this transaction, but we have to ignore it.
+            """
+            obj['i_paid'] = 0
+            obj['i_owe'] = 0
+            obj['not_involved'] = True
+        else:
+            obj['i_paid'] = Decimal(my_expense_user_obj.getPaidShare())
+            obj['i_owe'] = Decimal(my_expense_user_obj.getOwedShare())
+            obj['not_involved'] = False
 
         # The fact that a transaction in your bank account ends up split in
         # two transactions in Buckets makes it more difficult to verify that

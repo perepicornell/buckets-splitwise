@@ -435,10 +435,11 @@ class BucketManager:
             if transaction[7] != 'transfer':
                 trans_ids.append(transaction[0])
         if len(trans_ids) > 0:
-            print(trans_ids)
             cmd = (f"DELETE FROM bucket_transaction WHERE account_trans_id "
                    f"in ({','.join(['?']*len(trans_ids))})")
-            print(cmd)
+            if config['debug'].get() is True:
+                print(trans_ids)
+                print(cmd)
             self.cursor.execute(cmd, trans_ids)
             self.cursor.fetchall()
         cmd = "DELETE FROM account_transaction WHERE fi_id = ?"

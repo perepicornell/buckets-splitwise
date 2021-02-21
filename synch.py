@@ -374,6 +374,7 @@ class SplitwiseToBucketsSynch:
 
     def run(self):
         self.process_sw_expenses()
+        self.bk.dump_db_to_disk()
         self.print_report()
 
 

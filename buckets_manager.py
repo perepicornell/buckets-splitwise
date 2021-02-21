@@ -72,7 +72,9 @@ class BucketManager:
 
     """
     def __init__(self):
-        self.connection = sqlite3.connect(config['BudgetFilePath'].get())
+        self.disk_connection = sqlite3.connect(config['BudgetFilePath'].get())
+        self.connection = sqlite3.connect(':memory:')
+        self.disk_connection.backup(self.connection)
         if debug:
             self.connection.set_trace_callback(print)
         self.cursor = self.connection.cursor()
@@ -88,6 +90,9 @@ class BucketManager:
         if len(results) > 0:
             for bucket in results:
                 self.bucket_ids.update({bucket[2]: bucket[0]})
+
+    def dump_db_to_disk(self):
+        self.connection.backup(self.disk_connection)
 
     def get_account_id(self, acc_name):
         cmd = f"SELECT * FROM account WHERE name='{acc_name}'"
@@ -437,7 +442,7 @@ class BucketManager:
         if len(trans_ids) > 0:
             cmd = (f"DELETE FROM bucket_transaction WHERE account_trans_id "
                    f"in ({','.join(['?']*len(trans_ids))})")
-            if config['debug'].get() is True:
+            if debug is True:
                 print(trans_ids)
                 print(cmd)
             self.cursor.execute(cmd, trans_ids)

@@ -1,6 +1,7 @@
 import sys
 import textwrap
 import traceback
+import atexit
 from decimal import Decimal
 from datetime import datetime, timezone
 from dataclasses import dataclass, astuple
@@ -376,6 +377,14 @@ class SplitwiseToBucketsSynch:
         self.process_sw_expenses()
         self.bk.dump_db_to_disk()
         self.print_report()
+        input()
+
+
+def exit_handler():
+    print('My application is ending!')
+    input()
+
+atexit.register(exit_handler)
 
 
 SplitwiseToBucketsSynch().run()

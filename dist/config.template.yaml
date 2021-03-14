@@ -1,0 +1,110 @@
+appName: SplitwiseToBuckets
+debug: false
+
+Buckets:
+  BudgetFilePath: "/home/blah/docs/Buckets/tests.buckets"
+  # You need an account dedicated to Splitwise in your budget.
+  # Set-up here the actual account names as you have them in Buckets' budget:
+  AccountsKeywords:
+    splitwise: 'Splitwise'
+    payment: 'Main bank account'
+    cash: 'Cash'
+
+Splitwise:
+  # In Splitwise's website you need to create an App in order to obtain the
+  # Consumer keys, and in the app details, you have to specify the
+  # callback url exactly like you set it here:
+  CallbackUrl: http://localhost:1337/generate_token/
+  ConsumerKey: ""
+  ConsumerSecret: ""
+  # Obtain your authentication token by running 'python authenticate.py':
+  LastValidToken:
+    access_token: ""
+    token_type: "bearer"
+  # Using 90 days by default, still have to check the hard limit from the API.
+  ExpensesDaysAgo: 90
+  # The dated_after will override the days_ago setting, so at the beginning of
+  # using the script, set the dated_after to the last day you already have your
+  # Splitwise expenses registered so it will not include that day or the prior.
+  ExpensesDatedAfter: "2020-09-01"
+  # By default (and without mentioning it in the docs) the API returns a limit
+  # of 20 expenses. Set it to a limit that you think will cover the amount of
+  # expenses you'll have since the given ExpensesDatedAfter.
+  ExpensesLimit: 100
+  # By default it's assumed that you are paying the expenses from the
+  # AccountsKeywords.payment account.
+  # In order to register the expenses paid in cash from the right account,
+  # in your Splitwise expense add a comment with the following keyword.
+  ExpensesCashKeyword: "cash"
+  # Add a comment or note with the following word to your Splitwise expense
+  # in order to ignore it when synchronizing.
+  # Doing so means it'll be just ignored, therefore if it was already imported
+  # before you tag the expense, running synch again is not going to delete it.
+  ExpensesIgnoreKeyword: "nosynch"
+
+# These are all Splitwise's categories indexed by its ID.
+# You can assign any of them to a bucket by writing the bucket name in the
+# value:
+#
+#     13: 'Restaurants'  # Dining out [subcategory]
+#
+# Remember to update this if you rename your buckets!
+# I believe that only [subcategories] can be assigned to expenses in Splitwise,
+# but I left the [main] categories just in case.
+SplitwiseCategoriesToBucketNames:
+  19: null  # Entertainment [main]
+  20: null  # Games [subcategory]
+  21: null  # Movies [subcategory]
+  22: null  # Music [subcategory]
+  23: null  # Other [subcategory]
+  24: null  # Sports [subcategory]
+
+  25: null  # Food and drink [main]
+  13: null  # Dining out [subcategory]
+  12: null  # Groceries [subcategory]
+  38: null  # Liquor [subcategory]
+  26: null  # Other [subcategory]
+
+  27: null  # Home [main]
+  39: null  # Electronics [subcategory]
+  16: null  # Furniture [subcategory]
+  14: null  # Household supplies [subcategory]
+  17: null  # Maintenance [subcategory]
+  4: null  # Mortgage [subcategory]
+  28: null  # Other [subcategory]
+  29: null  # Pets [subcategory]
+  3: null  # Rent [subcategory]
+  30: null  # Services [subcategory]
+
+  40: null  # Life [main]
+  50: null  # Childcare [subcategory]
+  41: null  # Clothing [subcategory]
+  49: null  # Education [subcategory]
+  42: null  # Gifts [subcategory]
+  10: null  # Insurance [subcategory]
+  43: null  # Medical expenses [subcategory]
+  44: null  # Other [subcategory]
+  45: null  # Taxes [subcategory]
+
+  31: null  # Transportation [main]
+  46: null  # Bicycle [subcategory]
+  32: null  # Bus/train [subcategory]
+  15: null  # Car [subcategory]
+  33: null  # Gas/fuel [subcategory]
+  47: null  # Hotel [subcategory]
+  34: null  # Other [subcategory]
+  9: null  # Parking [subcategory]
+  35: null  # Plane [subcategory]
+  36: null  # Taxi [subcategory]
+
+  2: null  # Uncategorized [main]
+  18: null  # General [subcategory]
+
+  1: null  # Utilities [main]
+  48: null  # Cleaning [subcategory]
+  5: null  # Electricity [subcategory]
+  6: null  # Heat/gas [subcategory]
+  11: null  # Other [subcategory]
+  37: null  # Trash [subcategory]
+  8: null  # TV/Phone/Internet [subcategory]
+  7: null  # Water [subcategory]

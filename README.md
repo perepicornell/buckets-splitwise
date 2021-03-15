@@ -241,3 +241,18 @@ this correlation is going to prevail when synching.
 If you manually change an expense that is categorized in SplitwiseCategoriesToBucketNames and you don't want
 the script to modify it back again, you have to edit your expense in Splitwise and uncategorize it 
 (or set it to a category that you didn't relate to a bucket in SplitwiseCategoriesToBucketNames).
+
+## Development
+
+###Windows distribution
+
+We use the package [pyinstaller](https://www.pyinstaller.org/) to generate 
+standalone .exe files of both scripts.
+
+To create or update it, use:
+
+`pyinstaller -c -F --add-data "%VIRTUAL_ENV%\Lib\site-packages\yaspin\data;yaspin\data" --clean synch.py`
+
+That `--add-data` for yaspin is because there's a `spinners.json` file inside it
+that they must be including in some way that PyInstaller cannot get.
+

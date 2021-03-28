@@ -1,9 +1,14 @@
 import sqlite3
+from os.path import exists
 
 from settings import config
 
 debug = config['debug'].get()
 config = config['Buckets']
+
+
+class BucketsFileDoesNotExist(Exception):
+    pass
 
 
 class MissingSpliwiseAccount(Exception):
@@ -72,6 +77,11 @@ class BucketManager:
 
     """
     def __init__(self):
+        if not exists(config['BudgetFilePath'].get()):
+            raise BucketsFileDoesNotExist(
+                "Couldn't open your Buckets file. Please check the "
+                "BudgetFilePath parameter in your config.yaml file."
+            )
         self.disk_connection = sqlite3.connect(config['BudgetFilePath'].get())
         self.connection = sqlite3.connect(':memory:')
         self.disk_connection.backup(self.connection)

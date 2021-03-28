@@ -2,7 +2,12 @@ appName: SplitwiseToBuckets
 debug: false
 
 Buckets:
+  # Windows path format is, i.e.: "D:\\folder\\zero\\cool\\tests.buckets"
+  # Relative path format, i.e. if you put the file in this app's parent
+  # folder: "../tests.buckets"
+  # OSX path format: same than the given example.
   BudgetFilePath: "/home/blah/docs/Buckets/tests.buckets"
+
   # You need an account dedicated to Splitwise in your budget.
   # Set-up here the actual account names as you have them in Buckets' budget:
   AccountsKeywords:

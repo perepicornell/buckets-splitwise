@@ -377,12 +377,12 @@ class SplitwiseToBucketsSynch:
         self.process_sw_expenses()
         self.bk.dump_db_to_disk()
         self.print_report()
-        input()
 
 
 def exit_handler():
-    print('My application is ending!')
-    input()
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        input('Synchronization finished, press Enter to continue.')
+
 
 atexit.register(exit_handler)
 

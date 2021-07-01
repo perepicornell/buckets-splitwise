@@ -293,16 +293,20 @@ class SplitwiseToBucketsSynch:
             Therefore: in multiple create_or_update_transfers, the last one
             will override the prior.
             """
-            transfer_from_splitwise = {
-                'date': exp_obj.date,
-                'amount': exp_obj.total_amount,
-                'memo': exp_obj.name,
-                'fi_id': exp_obj.id,
-                'from_account': 'splitwise',
-                # If you're getting money in cash, put in the right account:
-                'to_account': 'cash' if exp_obj.is_cash else 'payment'
-            }
-            self.bk.create_or_update_transfer(**transfer_from_splitwise)
+            if exp_obj.i_paid < exp_obj.i_owe:
+                transfer_from_splitwise = {
+                    'date': exp_obj.date,
+                    'amount': exp_obj.total_amount,
+                    'memo': exp_obj.name,
+                    'fi_id': exp_obj.id,
+                    'from_account': 'splitwise',
+                    # If you're getting money in cash, put in the right account:
+                    'to_account': 'cash' if exp_obj.is_cash else 'payment'
+                }
+                self.bk.create_or_update_transfer(**transfer_from_splitwise)
+            else:
+                transfer_to_splitwise['amount'] = exp_obj.i_paid
+                self.bk.create_or_update_transfer(**transfer_to_splitwise)
         else:
             if exp_obj.i_paid < exp_obj.i_owe:
                 """
